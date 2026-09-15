@@ -13,6 +13,7 @@ Szyfrowanie po stronie klienta w przegladarce, tylko 1 skrypt AES do szyfrowania
 Frontend : 
 -index.html
 -crypto-js.min.js
+
 Backend:
 -app.py  - fastapi serwer z websoket
 -settings.json - ustawienia wstępne
