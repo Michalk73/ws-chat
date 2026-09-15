@@ -56,7 +56,7 @@ ALLOWED_ORIGINS = {"chat.121212.best", "121212.best"}  # tylko te strony moga la
 SETTINGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
 
 DEFAULT_SETTINGS = {
-    "title": "Czat 121212 — szyfrowany",
+    "title": "Czat — szyfrowany",
     "nick_placeholder": "np. Michal",
     "description": "Hasło jest kluczem pokoju: pierwsza osoba zakłada je razem z pokojem, a każdy następny musi je znać, żeby w ogóle wejść. Serwer weryfikuje je w ciemno (sam go nie widzi). Nowy pokój wymaga hasła o długości co najmniej 12 znaków — przycisk 🔑 wygeneruje losowe. Po restarcie serwisu pokój zakłada się od nowa.",
     "history_len": 200,
