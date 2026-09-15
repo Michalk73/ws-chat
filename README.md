@@ -35,6 +35,7 @@ Client-side encryption within the browser; uses a single AES script for encrypti
 Frontend:
 - index.html
 - crypto-js.min.js
+
 Backend:
 - app.py – FastAPI server with WebSockets
 - settings.json – initial settings
