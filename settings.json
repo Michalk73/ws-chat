@@ -1,5 +1,5 @@
 {
-  "title": "Czat 121212 — szyfrowany",
+  "title": "Czat — szyfrowany",
   "nick_placeholder": "np. Miesiek",
   "description": "Hasło jest kluczem pokoju: pierwsza osoba zakłada je razem z pokojem, a każdy następny musi je znać, żeby w ogóle wejść. Serwer weryfikuje je w ciemno (sam go nie widzi). Po restarcie serwisu pokój zakłada się od nowa. Wszystkie szyfrowania są po stronie klienta w przeglądarce. Serwer na żadnym etapie nie zna hasła szyfrowania pokoju. Ostatnie wiadomości z pokoju są dostępne do czasu ostatniego użytkownika online i są utrzymywane w pamięci RAM, nie na dysku. Nowy pokój wymaga hasła o długości co najmniej 12 znaków — przycisk 🔑 wygeneruje losowe.",
   "history_len": 200,
