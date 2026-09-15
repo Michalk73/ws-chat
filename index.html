@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Czat 121212 — szyfrowany</title>
+<script src="crypto-js.min.js"></script>
+<style>
+  :root { --bg:#0f1115; --panel:#171a21; --border:#2a2f3a; --txt:#e6e8ee; --dim:#8b93a3; --acc:#4f8cff; --ok:#3ddc84; --warn:#ffb020; --bad:#ff5c5c; --inp:#0d0f13; --chip:#232936; }
+  [data-theme="light"] { --bg:#f2f4f8; --panel:#ffffff; --border:#d8dde6; --txt:#1c2230; --dim:#5c6675; --acc:#2f6fe0; --ok:#1d9e5c; --warn:#c77d00; --bad:#d23b3b; --inp:#eef1f6; --chip:#e4e9f2; }
+  [data-theme="light"] #login { background:rgba(235,238,244,.86); }
+  [data-theme="light"] #login .card { box-shadow:0 20px 60px rgba(30,40,60,.18); }
+  [data-theme="light"] #login .err { background:rgba(210,59,59,.1); border-color:rgba(210,59,59,.35); }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--txt); font:14px/1.5 system-ui,Segoe UI,Roboto,sans-serif; height:100vh; display:flex; flex-direction:column; }
+
+  /* ---------- okienko logowania ---------- */
+  #login { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; background:rgba(6,8,12,.86); backdrop-filter:blur(3px); }
+  #login .card { position:relative; width:min(380px,92vw); background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:26px 26px 22px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  #login h1 { font-size:19px; margin-bottom:4px; }
+  #login p.sub { color:var(--dim); font-size:12px; margin-bottom:20px; }
+  #login label { display:block; font-size:12px; color:var(--dim); margin:12px 0 5px; }
+  #login input { width:100%; background:var(--inp); border:1px solid var(--border); color:var(--txt); border-radius:9px; padding:10px 12px; font-size:14px; outline:none; }
+  #login input:focus { border-color:var(--acc); }
+  #login .prow { position:relative; }
+  #login .prow input { padding-right:96px; }
+  #login #genbtn { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:auto; margin:0; padding:5px 9px; font-size:14px; line-height:1; border-radius:7px; background:var(--chip); border:1px solid var(--border); color:var(--dim); }
+  #login #genbtn:hover { color:var(--acc); border-color:var(--acc); }
+  #login .genbox { margin-top:8px; border:1px solid var(--border); border-left:3px solid var(--acc); border-radius:9px; padding:8px 10px; background:var(--chip); }
+  #login .gbtitle { font-size:11px; font-weight:700; color:var(--acc); margin-bottom:5px; letter-spacing:.2px; }
+  #login .gbrow { display:flex; align-items:center; gap:8px; }
+  #login #genval { font-family:ui-monospace,Consolas,monospace; font-size:15px; letter-spacing:.6px; color:var(--txt); word-break:break-all; flex:1; user-select:all; }
+  #login #copybtn { flex:0 0 auto; width:auto; margin:0; padding:4px 10px; font-size:12px; line-height:1.3; border-radius:6px; background:var(--chip); border:1px solid var(--border); color:var(--dim); cursor:pointer; }
+  #login #copybtn:hover { color:var(--acc); border-color:var(--acc); }
+  #login .gbtip { font-size:10.5px; color:var(--dim); margin-top:6px; line-height:1.45; }
+  #login .hint { font-size:11px; color:var(--dim); margin-top:6px; line-height:1.45; }
+  #login button { width:100%; margin-top:20px; background:var(--acc); border:0; color:#fff; border-radius:9px; padding:12px; font-size:15px; font-weight:600; cursor:pointer; }
+  #login button:hover { filter:brightness(1.12); }
+  #login .err { display:none; margin-top:12px; background:rgba(255,92,92,.12); border:1px solid rgba(255,92,92,.4); color:var(--bad); font-size:12px; border-radius:8px; padding:8px 10px; }
+  /* licznik wolnych połączeń (limit z settings.json na serwerze) */
+  #login .cap { display:none; align-items:center; gap:8px; margin-top:14px; background:var(--inp); border:1px solid var(--border); color:var(--dim); font-size:12px; line-height:1.4; border-radius:9px; padding:7px 10px; }
+  #login .cap.show { display:flex; }
+  #login .cap .c { width:8px; height:8px; min-width:8px; border-radius:50%; background:var(--ok); }
+  #login .cap b { color:var(--txt); font-weight:700; }
+  #login .cap.low { border-color:rgba(255,176,32,.45); }
+  #login .cap.low .c { background:var(--warn); }
+  #login .cap.low b { color:var(--warn); }
+  #login .cap.full { border-color:rgba(255,92,92,.55); background:rgba(255,92,92,.1); }
+  #login .cap.full .c { background:var(--bad); }
+  #login .cap.full b { color:var(--bad); }
+
+  /* ---------- czat ---------- */
+  header { display:flex; align-items:center; gap:10px; padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border); flex-wrap:wrap; }
+  header h1 { font-size:16px; font-weight:600; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#555; display:inline-block; }
+  .dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+  #roomtag { background:var(--chip); border:1px solid var(--border); border-radius:8px; padding:3px 10px; font-size:13px; color:var(--acc); font-weight:600; }
+  #logout { margin-left:auto; background:var(--chip); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  #logout:hover { border-color:var(--bad); color:var(--bad); }
+  .theme-btn { background:var(--chip); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  .theme-btn:hover { border-color:var(--acc); }
+  .help-btn { background:var(--chip); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; font-weight:700; }
+  .help-btn:hover { border-color:var(--acc); }
+  #login .card .theme-btn { position:absolute; top:14px; right:14px; width:auto; margin:0; padding:5px 10px; font-size:12px; }
+  #login .card .help-btn { position:absolute; top:14px; right:44px; width:auto; margin:0; padding:5px 10px; font-size:12px; }
+  main { flex:1; display:flex; min-height:0; }
+  #chat { flex:1; overflow-y:auto; padding:12px 14px; display:flex; flex-direction:column; gap:6px; }
+  .m { background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:8px 12px; max-width:78%; align-self:flex-start; }
+  .m .meta { font-size:11px; color:var(--dim); margin-bottom:2px; }
+  .m .meta b { color:var(--acc); }
+  .m .crypt { font-size:10px; color:var(--dim); border:1px solid var(--border); border-radius:4px; padding:0 5px; margin-left:6px; }
+  /* v2.10: własne wiadomości po prawej, inny kolor dymka */
+  .m.me { align-self:flex-end; background:#1e2c4d; border-color:#3a5f9e; }
+  [data-theme="light"] .m.me { background:#d9e6fb; border-color:#9db9e8; }
+  @supports (color:color-mix(in srgb, red 50%, blue)) {
+    .m.me { background:color-mix(in srgb, var(--acc) 18%, var(--panel)); border-color:color-mix(in srgb, var(--acc) 45%, var(--border)); }
+  }
+  .m.pm { border-color:var(--warn); background:rgba(255,176,32,.06); }
+  .m.pm .meta b { color:var(--warn); }
+  .m.pm .crypt { border-color:rgba(255,176,32,.5); color:var(--warn); }
+  .sys { align-self:center; font-size:12px; color:var(--dim); background:transparent; border:none; text-align:center; }
+  .sys.warn { color:var(--warn); }
+  .sys.bad { color:var(--bad); }
+  aside { width:200px; background:var(--panel); border-left:1px solid var(--border); padding:12px 14px; overflow-y:auto; display:none; }
+  aside.show { display:block; }
+  aside h3 { font-size:12px; color:var(--dim); text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+  aside .nick { font-size:13px; padding:2px 0; cursor:pointer; border-radius:6px; padding:2px 6px; margin-left:-6px; }
+  aside .nick:not(.me):hover { background:var(--inp); color:var(--acc); }
+  aside .nick.me { color:var(--ok); cursor:default; }
+  footer { display:flex; gap:8px; padding:10px 14px; background:var(--panel); border-top:1px solid var(--border); position:relative; }
+  footer input { flex:1; background:var(--inp); border:1px solid var(--border); color:var(--txt); border-radius:9px; padding:10px 12px; font-size:14px; outline:none; }
+  footer input:focus { border-color:var(--acc); }
+  #send { background:var(--acc); border:0; color:#fff; border-radius:9px; padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; }
+  #send:disabled { opacity:.5; cursor:default; }
+  #emobtn { background:var(--chip); border:1px solid var(--border); color:var(--txt); border-radius:9px; padding:6px 11px; font-size:17px; line-height:1; cursor:pointer; }
+  #emobtn:hover { border-color:var(--acc); }
+  #emobtn:disabled { opacity:.5; cursor:default; }
+  #emobox { position:absolute; bottom:calc(100% + 10px); right:14px; width:264px; max-height:230px; overflow-y:auto; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:8px; display:none; grid-template-columns:repeat(8,1fr); gap:2px; box-shadow:0 16px 40px rgba(0,0,0,.45); z-index:40; }
+  #emobox.show { display:grid; }
+  #emobox button { background:transparent; border:0; border-radius:8px; font-size:19px; line-height:1; padding:5px 2px; cursor:pointer; }
+  #emobox button:hover { background:var(--chip); }
+  /* ---------- okienko pomocy ---------- */
+  #helpbox { position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; background:rgba(6,8,12,.55); backdrop-filter:blur(2px); }
+  #helpbox.show { display:flex; }
+  #helpbox .card { width:min(430px,92vw); max-height:82vh; overflow-y:auto; background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:22px 24px; box-shadow:0 20px 60px rgba(0,0,0,.5); }
+  #helpbox h2 { font-size:16px; margin-bottom:4px; }
+  #helpbox p.sub { font-size:12px; color:var(--dim); margin-bottom:12px; }
+  #helpbox ul { list-style:none; }
+  #helpbox li { font-size:13px; line-height:1.55; padding:7px 0; border-bottom:1px solid var(--border); color:var(--txt); }
+  #helpbox li:last-child { border-bottom:0; }
+  #helpbox li b { color:var(--acc); }
+  /* tryb logowania (loginview): tylko 4 podstawowe punkty; po zalogowaniu pełna pomoc */
+  #helpbox.loginview li.extra { display:none; }
+  #helpbox.loginview li.keep:nth-child(4) { border-bottom:0; }
+  #helpbox .close { width:100%; margin-top:14px; background:var(--acc); border:0; color:#fff; border-radius:9px; padding:10px; font-size:14px; font-weight:600; cursor:pointer; }
+  #helpbox .close:hover { filter:brightness(1.12); }
+  /* ---------- mobile: lista obecnych jako wysuwana szuflada ---------- */
+  #sidebtn { display:none; background:var(--chip); border:1px solid var(--border); color:var(--txt); border-radius:8px; padding:6px 12px; cursor:pointer; font-size:13px; }
+  #sidebtn:hover { border-color:var(--acc); }
+  #sidebtn:active { border-color:var(--acc); background:var(--acc); }
+  #sideclose { display:none; background:none; border:0; color:var(--dim); font-size:15px; cursor:pointer; padding:2px 6px; border-radius:6px; }
+  #sideclose:hover { color:var(--bad); }
+  .sidehead { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; }
+  .sidehead h3 { margin:0; }
+  @media (max-width:700px) {
+    #sidebtn { display:inline-block; }
+    #sideclose { display:block; }
+    aside { display:block; position:fixed; top:0; right:0; bottom:0; width:min(250px,80vw); z-index:45; transform:translateX(105%); transition:transform .18s ease; box-shadow:-14px 0 34px rgba(0,0,0,.45); }
+    aside.show { transform:translateX(0); }
+    .m { max-width:92%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ OKNO LOGOWANIA ============ -->
+<div id="login">
+  <div class="card">
+    <h1 id="lh1">Czat 121212 — szyfrowany</h1>
+    <button id="theme2" class="theme-btn" title="Motyw jasny/ciemny">☀️</button>
+    <button id="help2" class="help-btn" title="Pomoc / instrukcja">?</button>
+    <p class="sub">Wiadomości szyfrowane AES w Twojej przeglądarce</p>
+    <div class="cap" id="capinfo"></div>
+    <label for="in_nick">Nazwa użytkownika</label>
+    <input id="in_nick" type="text" placeholder="np. Michal" maxlength="24" autocomplete="off">
+    <label for="in_room">Nazwa pokoju</label>
+    <input id="in_room" type="text" placeholder="np. glowne" maxlength="32" autocomplete="off">
+    <label for="in_pass">Hasło (do szyfrowania wiadomości)</label>
+    <div class="prow">
+      <input id="in_pass" type="password" placeholder="hasło AES pokoju (min. 12 znaków dla nowego)" autocomplete="off">
+      <button type="button" id="genbtn" title="Wygeneruj losowe hasło (16 znaków)">🔑</button>
+    </div>
+    <div class="genbox" id="genbox" hidden>
+      <div class="gbtitle">🔑 Hasło Twojego pokoju — przekaż je znajomym</div>
+      <div class="gbrow">
+        <code id="genval"></code>
+        <button type="button" id="copybtn" title="Kopiuj do schowka">Kopiuj</button>
+      </div>
+      <p class="gbtip">Kliknij Kopiuj i wyślij to hasło znajomym (np. przez PW/Telegram/SMS) — bez niego nie wejdą do pokoju. Hasło nie jest nigdzie zapisywane, serwer go nie widzi.</p>
+    </div>
+    <p class="hint" id="hint">Hasło jest kluczem pokoju: pierwsza osoba zakłada je razem z pokojem, a każdy następny musi je znać, żeby w ogóle wejść. Serwer weryfikuje je w ciemno (sam go nie widzi). Po restarcie serwisu pokój zakłada się od nowa.</p>
+    <button id="loginbtn">Dołącz do pokoju</button>
+    <div class="err" id="loginerr"></div>
+  </div>
+</div>
+
+<!-- ============ CZAT ============ -->
+<header>
+  <h1 id="hh1">Czat 121212 — szyfrowany</h1>
+  <span id="status" class="dot"></span>
+  <span id="roomtag">#—</span>
+  <button id="theme" class="theme-btn" title="Motyw jasny/ciemny">☀️</button>
+  <button id="help" class="help-btn" title="Pomoc / instrukcja">?</button>
+  <button id="logout">Zmień pokój / rozłącz</button>
+  <button id="sidebtn" title="Lista obecnych">👥</button>
+</header>
+<main>
+  <div id="chat"></div>
+  <aside id="side">
+    <div class="sidehead"><h3>Obecni w pokoju</h3><button id="sideclose" title="Zamknij listę">✕</button></div>
+    <div id="nicklist"></div>
+  </aside>
+</main>
+<footer>
+  <input id="text" type="text" placeholder="Wiadomość... (@nick tekst = prywatnie)" maxlength="2000" autocomplete="off" disabled>
+  <button id="emobtn" title="Emotikonki" disabled>😊</button>
+  <button id="send" disabled>Wyślij</button>
+  <!-- ============ OKNO EMOTIKONEK ============ -->
+  <div id="emobox"></div>
+</footer>
+
+<!-- ============ OKNO POMOCY ============ -->
+<div id="helpbox">
+  <div class="card">
+    <h2>Pomoc</h2>
+    <p class="sub">Czat 121212 — jak korzystać · <span id="ver">v2.13</span></p>
+    <ul>
+      <li class="keep"><b>Limit połączeń:</b> serwer przyjmuje ograniczoną liczbę osób naraz — na ekranie logowania widać, ile połączeń jest wolnych. Gdy serwer jest pełny, poczekaj, aż ktoś się rozłączy, i spróbuj ponownie.</li>
+      <li class="keep"><b>Bezpieczne hasło (v2.12):</b> nowy pokój wymaga hasła o długości co najmniej 12 znaków — krótsze da się złamać offline w sekundy. Przycisk 🔑 przy polu hasła wygeneruje losowe 16 znaków i pokaże je na ekranie razem z przyciskiem Kopiuj — wyślij je znajomym (PW/Telegram/SMS), bo bez niego nie wejdą do pokoju.</li>
+      <li class="keep"><b>Hasło pokoju:</b> pierwsza osoba zakłada pokój razem z hasłem; każdy następny musi je znać. Po restarcie serwisu pokój tworzy się od nowa.</li>
+      <li class="keep"><b>Szyfrowanie:</b> wiadomości są szyfrowane AES w Twojej przeglądarce — serwer ich nie widzi i nie zna hasła pokoju.</li>
+      <li class="extra"><b>Emotikonki:</b> przycisk 😊 obok pola wiadomości otwiera okienko emoji — kliknięcie wstawia emotikonkę w miejscu kursora.</li>
+      <li class="extra"><b>Dźwięk powiadomienia:</b> gdy karta czatu jest nieaktywna, nowa wiadomość od kogoś innego daje krótkie piknięcie.</li>
+      <li class="extra"><b>Lista obecnych na telefonie:</b> przycisk 👥 w górnym pasku wysuwa listę z prawej strony; ✕ lub kliknięcie obok zamyka ją.</li>
+      <li class="extra"><b>Wiadomość prywatna:</b> wpisz <b>@nick treść</b>, np. <b>@Miki cześć</b> — zobaczą ją tylko Ty i adresat. Nie trafia do historii pokoju.</li>
+      <li class="extra"><b>Szybki wybór adresata:</b> kliknij nick na liście „Obecni w pokoju” — @nick wstawi się do pola wiadomości. (Klik na własny nick nic nie robi.)</li>
+      <li class="extra"><b>Motyw jasny/ciemny:</b> przełącznik ☀️/🌙 w pasku na górze i na ekranie logowania. Wybór jest zapamiętywany.</li>
+      <li class="extra"><b>Własne wiadomości:</b> Twoje wypowiedzi są po prawej stronie i w innym kolorze — wiadomości pozostałych osób po lewej. Tak samo widać Twoje PW.</li>
+    </ul>
+    <button class="close">Zamknij</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+
+let ws = null, nick = "", room = "", pass = "", joined = false;
+
+/* ---------- pomocnicze ---------- */
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+function logSys(txt, cls) {
+  const d = document.createElement("div");
+  d.className = "sys" + (cls ? " " + cls : "");
+  d.textContent = txt;
+  $("chat").appendChild(d);
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+function addMsg(dec, cls, badge, mine) {
+  const d = document.createElement("div");
+  d.className = "m" + (cls ? " " + cls : "") + (mine || dec.user === nick ? " me" : "");
+  const tag = badge ? `<span class="crypt">${esc(badge)}</span>` : '<span class="crypt">AES</span>';
+  d.innerHTML = `<div class="meta"><b>${esc(dec.user)}</b> · ${esc(dec.data)} ${esc(dec.czas)} ${tag}</div><div>${esc(dec.msg)}</div>`;
+  $("chat").appendChild(d);
+  $("chat").scrollTop = $("chat").scrollHeight;
+}
+
+function setStatus(ok, txt) {
+  $("status").className = "dot " + (ok ? "ok" : "bad");
+  $("status").title = txt || "";
+}
+
+/* ---------- szyfrowanie AES (CryptoJS, klient) ---------- */
+function encryptMsg(plainText) {
+  // zaszyfrowany JSON: {data, czas, user, msg}
+  const now = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  const payload = {
+    data: now.getFullYear() + "-" + pad(now.getMonth()+1) + "-" + pad(now.getDate()),
+    czas: pad(now.getHours()) + ":" + pad(now.getMinutes()) + ":" + pad(now.getSeconds()),
+    user: nick,
+    msg: plainText
+  };
+  return CryptoJS.AES.encrypt(JSON.stringify(payload), pass).toString();
+}
+
+function decryptMsg(cipherText) {
+  // zwraca odszyfrowany obiekt lub null gdy hasło nie pasuje
+  try {
+    const bytes = CryptoJS.AES.decrypt(cipherText, pass);
+    const str = bytes.toString(CryptoJS.enc.Utf8);
+    if (!str) return null;
+    const obj = JSON.parse(str);
+    if (typeof obj.data !== "string" || typeof obj.czas !== "string" ||
+        typeof obj.user !== "string" || typeof obj.msg !== "string") return null;
+    return obj;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ---------- challenge: szyfrowanie/deszyfrowanie surowego ciągu ---------- */
+function encryptRaw(txt) {
+  // zwraca kryptogram w formacie CryptoJS (OpenSSL "Salted__")
+  return CryptoJS.AES.encrypt(txt, pass).toString();
+}
+
+function decryptRaw(cipher) {
+  // zwraca odszyfrowany ciąg lub null gdy hasło nie pasuje
+  try {
+    const s = CryptoJS.AES.decrypt(cipher, pass).toString(CryptoJS.enc.Utf8);
+    return s || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* ---------- WebSocket ---------- */
+function send(obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(obj)); }
+
+function connect() {
+  setStatus(false, "łączenie…");
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  ws = new WebSocket(`${proto}://${location.host}/ws?nick=${encodeURIComponent(nick)}`);
+
+  ws.onopen = () => { setStatus(true, "połączono"); };
+
+  ws.onmessage = ev => {
+    let d;
+    try { d = JSON.parse(ev.data); } catch { return; }
+
+    if (d.type === "ping") { send({type:"pong"}); return; }
+
+    if (d.type === "settings") { applySettings(d.settings); return; }
+
+    if (d.type === "welcome") {
+      logSys(`Witaj ${d.nick}! Łączę z pokojem #${room}…`);
+      send({type:"join", room: room});
+      return;
+    }
+
+    if (d.type === "challenge") {
+      // weryfikacja hasła: pokój nowy -> szyfrujemy ciąg od serwera,
+      // pokój istniejący -> odszyfrowujemy zapisany kryptogram i odsyłamy wynik
+      if (d.mode === "create") {
+        // v2.11: haslo NOWEGO pokoju musi miec min. 12 znakow. Serwer hasla nie
+        // widzi (zna tylko kryptogram), wiec wymuszenie moze zyc tylko tutaj,
+        // w przegladarce — dokladnie w momencie, gdy pokoj jest zakladany.
+        if (pass.length < 12) {
+          if (ws) { try { ws.close(); } catch(e) {} ws = null; }
+          $("login").style.display = "flex";
+          $("loginerr").textContent = "Hasło nowego pokoju musi mieć co najmniej 12 znaków — krótkie hasła pada w sekundy przy łamaniu offline. Wydłuż hasło albo kliknij 🔑, aby wygenerować losowe.";
+          $("loginerr").style.display = "block";
+          return;
+        }
+        send({type:"challenge_resp", cipher: encryptRaw(d.challenge)});
+      } else {
+        const plain = decryptRaw(d.cipher);
+        if (plain) send({type:"challenge_resp", plain: plain});
+        else send({type:"challenge_fail"});
+      }
+      return;
+    }
+
+    if (d.type === "history") {
+      joined = true;
+      $("roomtag").textContent = "#" + d.room;
+      if (d.messages.length) {
+        logSys(`Historia pokoju #${d.room} (${d.messages.length} wiadomości):`);
+        d.messages.forEach(m => {
+          const dec = decryptMsg(m.text);
+          if (dec) addMsg(dec);
+          else logSys(`⚠ ${m.nick} — wiadomość nie do odszyfrowania (ktoś nie zna hasła do pokoju)`, "warn");
+        });
+      } else {
+        logSys(`Pokój #${d.room} jest pusty. Napisz pierwszą wiadomość.`);
+      }
+      $("text").disabled = false;
+      $("send").disabled = false;
+      $("emobtn").disabled = false;
+      $("text").focus();
+      return;
+    }
+
+    if (d.type === "join_ack" || d.type === "leave_ack") return;
+
+    if (d.type === "presence") {
+      const side = $("side");
+      const nl = $("nicklist");
+      nl.innerHTML = "";
+      d.nicks.forEach(n => {
+        const p = document.createElement("div");
+        p.className = "nick" + (n === nick ? " me" : "");
+        p.textContent = n + (n === nick ? " (Ty)" : "");
+        nl.appendChild(p);
+      });
+      // na desktopie panel jest na stałe, na mobile otwiera go dopiero przycisk 👥
+      if (window.innerWidth > 700) side.classList.add("show");
+      return;
+    }
+
+    if (d.type === "msg") {
+      const dec = decryptMsg(d.text);
+      if (dec) {
+        addMsg(dec);
+        // piknięcie tylko przy wiadomości od kogoś innego i gdy karta nieaktywna
+        if (dec.user !== nick && (document.hidden || !document.hasFocus())) beepNotify();
+      } else {
+        // serwer podaje nick nadawcy jawnie — wiemy, kto nie zna hasła
+        logSys(`⚠ ${d.nick} wysłał wiadomość, której nie da się odszyfrować — nie zna hasła do pokoju?`, "warn");
+      }
+      return;
+    }
+
+    if (d.type === "pm") {
+      // wiadomość prywatna: tylko nadawca i odbiorca ją widzą
+      const dec = decryptMsg(d.text);
+      if (!dec) {
+        logSys("⚠ Wiadomość prywatna nie do odszyfrowania — hasło nie pasuje?", "warn");
+        return;
+      }
+      if (dec.user === nick) {
+        addMsg(Object.assign({}, dec, {user: `Ty → ${d.to}`}), "pm", "PW", true);
+      } else {
+        addMsg(Object.assign({}, dec, {user: `od ${dec.user}`}), "pm", "PW");
+        if (document.hidden || !document.hasFocus()) beepNotify();
+      }
+      return;
+    }
+
+    if (d.type === "error") {
+      if (!joined) {
+        // błąd przy logowaniu/weryfikacji hasła — wróć do okienka
+        if (ws) { try { ws.close(); } catch(e) {} ws = null; }
+        $("login").style.display = "flex";
+        $("loginerr").textContent = d.msg || d.text || "Błąd.";
+        $("loginerr").style.display = "block";
+      } else {
+        logSys("Błąd: " + (d.msg || d.text), "bad");
+      }
+      return;
+    }
+  };
+
+  ws.onclose = () => {
+    setStatus(false, "rozłączony");
+    $("text").disabled = true;
+    $("send").disabled = true;
+    $("emobtn").disabled = true;
+    emobox.classList.remove("show");
+    if (joined) {
+      logSys("Połączenie zerwane. Próbuję ponownie za 3 s…", "bad");
+      joined = false;
+      setTimeout(connect, 3000);
+    } else if ($("login").style.display !== "flex") {
+      // połączenie padło przed dołączeniem (np. podczas weryfikacji hasła)
+      $("login").style.display = "flex";
+      $("loginerr").textContent = "Połączenie zerwane podczas logowania. Spróbuj ponownie.";
+      $("loginerr").style.display = "block";
+    }
+  };
+  ws.onerror = () => setStatus(false, "błąd połączenia");
+}
+
+/* ---------- logowanie ---------- */
+function genPass() {
+  // losowe 16 znakow bez mylacych 0O1lI — crypto.getRandomValues, nie Math.random
+  const chars = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const a = new Uint32Array(16);
+  crypto.getRandomValues(a);
+  let p = "";
+  for (let i = 0; i < 16; i++) p += chars[a[i] % chars.length];
+  $("in_pass").value = p;
+  $("in_pass").type = "text";          // zakladajacy MUSI widziec wygenerowane haslo
+  $("genval").textContent = p;
+  $("genbox").hidden = false;
+  $("loginerr").style.display = "none";
+  $("in_pass").focus();
+  $("in_pass").select();
+}
+$("genbtn").onclick = genPass;
+// przy recznym wpisywaniu wracamy do maskowania i chowamy podglad (haslo juz nieaktualne)
+$("in_pass").addEventListener("input", () => {
+  if (!$("genbox").hidden && $("in_pass").value !== $("genval").textContent) {
+    $("in_pass").type = "password";
+    $("genbox").hidden = true;
+  }
+});
+$("copybtn").onclick = e => {
+  e.stopPropagation();
+  const p = $("genval").textContent;
+  const done = () => {
+    const b = $("copybtn");
+    b.textContent = "Skopiowano ✓";
+    setTimeout(() => { b.textContent = "Kopiuj"; }, 2000);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(p).then(done).catch(() => fallbackCopy(p, done));
+  } else fallbackCopy(p, done);
+};
+function fallbackCopy(t, done) {
+  const ta = document.createElement("textarea");
+  ta.value = t;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand("copy"); done(); } catch (err) {}
+  document.body.removeChild(ta);
+}
+
+function doLogin() {
+  nick = $("in_nick").value.trim();
+  room = $("in_room").value.trim().toLowerCase();
+  pass = $("in_pass").value;
+  const err = $("loginerr");
+  err.style.display = "none";
+
+  if (!nick || !room || !pass) {
+    err.textContent = "Wypełnij wszystkie pola: nazwa użytkownika, pokój i hasło.";
+    err.style.display = "block";
+    return;
+  }
+  // zapamiętujemy nick i pokój (hasło NIE jest zapisywane nigdzie)
+  try {
+    localStorage.setItem("chat_nick", nick);
+    localStorage.setItem("chat_room", room);
+  } catch (e) {}
+  $("login").style.display = "none";
+  connect();
+}
+
+$("loginbtn").onclick = doLogin;
+$("in_pass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+
+/* ---------- wysyłanie ---------- */
+function doSend() {
+  const t = $("text").value.trim();
+  if (!t) return;
+  // "@nick [spacja] treść" = wiadomość prywatna tylko dla tego użytkownika
+  const m = t.match(/^@(\S+?)[,:]?\s+([\s\S]+)$/);
+  if (m && m[2].trim()) {
+    send({type:"pm", room: room, to: m[1], text: encryptMsg(m[2].trim())});
+  } else {
+    send({type:"msg", room: room, text: encryptMsg(t)});
+  }
+  $("text").value = "";
+  $("text").focus();
+}
+$("send").onclick = doSend;
+$("text").addEventListener("keydown", e => { if (e.key === "Enter") doSend(); });
+
+/* ---------- emotikonki: wstawianie w miejscu kursora ---------- */
+const EMOJIS = ["😀","😁","😂","🤣","😊","😍","🥰","😘","😎","🤩","🤔","🤨","😐","😴","🤤","😢","😭","😡","🤯","🥳","😇","🙃","😉","🤗","🤫","🤭","😬","🙄","😱","🤠","👍","👎","👌","✌️","🤞","🤟","🤙","👏","🙌","🤝","🙏","💪","🫶","❤️","🧡","💛","💚","💙","💜","🖤","🤍","💯","🔥","✨","⭐","🌟","🎉","🎊","🎂","🎁","🏆","⚽","🏀","🎮","🎵","🎶","🎤","🌹","🌸","🌈","☀️","🌙","⛅","❄️","🌧️","⚡","🍀","🍕","🍺","☕","🍰","🚗","✈️","🏠","💰","🔑","🔒","✅","❌","❗","❓","💤","👋","🫡","🤡","👀"];
+const emobox = $("emobox");
+EMOJIS.forEach(e => {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = e;
+  b.onclick = () => {
+    const inp = $("text");
+    const s = inp.selectionStart ?? inp.value.length;
+    const e2 = inp.selectionEnd ?? inp.value.length;
+    inp.value = inp.value.slice(0, s) + e + inp.value.slice(e2);
+    const pos = s + e.length;
+    inp.setSelectionRange(pos, pos);
+    inp.focus();
+  };
+  emobox.appendChild(b);
+});
+/* ---------- dźwięk powiadomienia o nowej wiadomości (v2.7) ---------- */
+let actx = null;
+function ensureAudio() {
+  if (!actx) {
+    try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+  }
+  if (actx.state === "suspended") actx.resume().catch(() => {});
+}
+// przeglądarka zezwala na dźwięk dopiero po pierwszym kliknięciu/naciśnięciu klawisza
+document.addEventListener("pointerdown", ensureAudio, { once: true });
+document.addEventListener("keydown", ensureAudio, { once: true });
+
+function beepNotify() {
+  if (!actx) return;
+  try {
+    const t = actx.currentTime;
+    [880, 1318.5].forEach((f, i) => {
+      const o = actx.createOscillator();
+      const g = actx.createGain();
+      o.type = "sine";
+      o.frequency.value = f;
+      const st = t + i * 0.13;
+      g.gain.setValueAtTime(0.0001, st);
+      g.gain.exponentialRampToValueAtTime(0.18, st + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, st + 0.4);
+      o.connect(g); g.connect(actx.destination);
+      o.start(st); o.stop(st + 0.45);
+    });
+  } catch (e) {}
+}
+
+$("emobtn").onclick = ev => { ev.stopPropagation(); emobox.classList.toggle("show"); };
+document.addEventListener("click", ev => { if (!emobox.contains(ev.target)) emobox.classList.remove("show"); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { emobox.classList.remove("show"); if (window.innerWidth <= 700) setSide(false); } });
+
+/* ---------- szuflada listy obecnych (mobile) ---------- */
+function setSide(show) { $("side").classList.toggle("show", !!show); }
+$("sidebtn").onclick = () => setSide(!$("side").classList.contains("show"));
+$("sideclose").onclick = () => setSide(false);
+// klik poza szufladą (mobile) zamyka ją
+document.addEventListener("click", ev => {
+  if (window.innerWidth > 700) return;
+  const side = $("side");
+  if (!side.classList.contains("show")) return;
+  if (side.contains(ev.target) || ev.target.id === "sidebtn") return;
+  setSide(false);
+});
+// przejście mobile -> desktop: pokaż panel na stałe
+window.addEventListener("resize", () => { if (window.innerWidth > 700) $("side").classList.add("show"); });
+
+/* ---------- klik w nick na liście obecnych = wstaw @nick do pola ---------- */
+$("side").addEventListener("click", e => {
+  const el = e.target.closest(".nick");
+  if (!el || el.classList.contains("me")) return;
+  $("text").value = "@" + el.textContent.trim() + " ";
+  $("text").focus();
+  if (window.innerWidth <= 700) setSide(false);
+});
+
+/* ---------- rozłączanie / zmiana pokoju ---------- */
+$("logout").onclick = () => {
+  joined = false;
+  if (ws) { try { ws.close(); } catch(e) {} ws = null; }
+  $("chat").innerHTML = "";
+  $("nicklist").innerHTML = "";
+  setSide(false);
+  $("roomtag").textContent = "#—";
+  setStatus(false, "rozłączony");
+  $("text").disabled = true; $("send").disabled = true; $("emobtn").disabled = true;
+  emobox.classList.remove("show");
+  $("in_nick").value = nick;
+  $("in_room").value = room;
+  $("in_pass").value = "";
+  $("in_pass").type = "password";
+  $("genbox").hidden = true;
+  $("login").style.display = "flex";
+  $("in_pass").focus();
+};
+
+/* ---------- motyw jasny/ciemny ---------- */
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll(".theme-btn").forEach(b => b.textContent = t === "light" ? "🌙" : "☀️");
+  try { localStorage.setItem("chat_theme", t); } catch (e) {}
+}
+document.querySelectorAll(".theme-btn").forEach(b => b.onclick = () =>
+  applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+try { applyTheme(localStorage.getItem("chat_theme") || "dark"); } catch (e) { applyTheme("dark"); }
+
+/* ---------- okno pomocy ---------- */
+function showHelp(show) {
+  $("helpbox").classList.toggle("show", !!show);
+  // na ekranie logowania pokazuj tylko podstawowe punkty (li.keep); w czacie pełną pomoc
+  $("helpbox").classList.toggle("loginview", !!show && $("login").style.display !== "none");
+}
+document.querySelectorAll(".help-btn").forEach(b => b.onclick = () => showHelp(true));
+$("helpbox").querySelector(".close").onclick = () => showHelp(false);
+$("helpbox").addEventListener("click", e => { if (e.target === $("helpbox")) showHelp(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") showHelp(false); });
+
+/* ---------- ustawienia z serwera (settings.json) ---------- */
+const DEF_SETTINGS = {
+  title: "Czat 121212 — szyfrowany",
+  nick_placeholder: "np. Michal",
+  description: "Hasło jest kluczem pokoju: pierwsza osoba zakłada je razem z pokojem, a każdy następny musi je znać, żeby w ogóle wejść. Serwer weryfikuje je w ciemno (sam go nie widzi). Nowy pokój wymaga hasła o długości co najmniej 12 znaków — przycisk 🔑 wygeneruje losowe. Po restarcie serwisu pokój zakłada się od nowa.",
+  history_len: 200,
+  max_msg: 2000
+};
+function applySettings(s) {
+  const cfg = Object.assign({}, DEF_SETTINGS, s || {});
+  document.title = cfg.title;
+  $("lh1").textContent = cfg.title;
+  $("hh1").textContent = cfg.title;
+  $("in_nick").placeholder = cfg.nick_placeholder;
+  $("hint").textContent = cfg.description;
+  const ml = parseInt(cfg.max_msg, 10);
+  if (ml > 0) $("text").maxLength = ml;
+}
+/* Ustawienia przychodzą z serwera przez WebSocket (wiadomość "settings") —
+   serwer czyta je z /home/chat/settings.json obok app.py; plik nie jest
+   publiczny, nie ma po co go pobierać przez HTTP. */
+
+/* ---------- wolne połączenia (v2.9: limit z settings.json, endpoint /status) ---------- */
+async function refreshCap() {
+  // licznik ma sens tylko na ekranie logowania
+  const overlay = $("login");
+  if (!overlay || overlay.style.display === "none") return;
+  const el = $("capinfo");
+  if (!el) return;
+  try {
+    const r = await fetch("/status", { cache: "no-store" });
+    if (!r.ok) throw 0;
+    const j = await r.json();
+    const max = parseInt(j.max_connections, 10);
+    const used = parseInt(j.clients, 10);
+    if (!(max > 0)) return;                       // 0 = brak limitu — nic nie pokazuj
+    const free = Math.max(0, max - (isNaN(used) ? 0 : used));
+    el.classList.remove("ok", "low", "full");
+    if (free === 0) {
+      el.classList.add("full");
+      el.innerHTML = '<span class="c"></span><span>Serwer pełny — <b>0 wolnych połączeń</b>. Poczekaj, aż ktoś się rozłączy.</span>';
+    } else {
+      if (free <= 10) el.classList.add("low"); else el.classList.add("ok");
+      el.innerHTML = `<span class="c"></span><span>Wolne połączenia: <b>${free}</b> z ${max}</span>`;
+    }
+    el.classList.add("show");
+  } catch (e) {
+    // starszy backend bez /status — licznik zostaje ukryty
+  }
+}
+setInterval(refreshCap, 4000);
+refreshCap();
+
+/* ---------- start: wstępne wypełnienie z localStorage ---------- */
+try {
+  $("in_nick").value = localStorage.getItem("chat_nick") || "";
+  $("in_room").value = localStorage.getItem("chat_room") || "";
+} catch (e) {}
+$("in_nick").focus();
+</script>
+</body>
+</html>
